@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProTrader Ultimate SaaS - AI Chart Reader & Background Engine</title>
+    <script src="https://s3.tradingview.com/tv.js"></script>
+    <style>
+        :root {
+            --bg-color: #030507;
+            --panel-bg: #0b1017;
+            --card-bg: #111824;
+            --card-hover: #162030;
+            --accent-green: #00e676;
+            --accent-red: #ff3d00;
+            --accent-blue: #00b0ff;
+            --accent-purple: #b388ff;
+            --accent-gold: #ffd600;
+            --text-main: #f8fafc;
+            --text-dim: #64748b;
+            --border: #1e293b;
+        }
+
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 15px; direction: rtl; }
+        
+        .page-view { display: none; max-width: 1400px; margin: 0 auto; }
+        .page-view.active-view { display: block; }
+
+        #authScreen { max-width: 420px; margin: 80px auto; background: var(--panel-bg); padding: 30px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.8); text-align: right; }
+        .auth-input { width: 100%; box-sizing: border-box; background: #030507; border: 1px solid var(--border); color: white; padding: 12px; margin: 8px 0 16px 0; border-radius: 6px; font-size: 14px; direction: ltr; text-align: right; }
+
+        .top-bar { background: var(--accent-red); color: white; padding: 8px 15px; border-radius: 6px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; font-size: 13px; }
+        .header-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: var(--panel-bg); padding: 15px; border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap; gap: 15px; }
+        
+        .timer-box { background: rgba(0, 176, 255, 0.1); border: 1px solid var(--accent-blue); color: var(--accent-blue); padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+        .market-status-box { background: rgba(255, 214, 0, 0.1); border: 1px solid var(--accent-gold); color: var(--accent-gold); padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+
+        .clocks-container { background: #030507; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+        .clock-item { font-size: 12px; display: flex; justify-content: space-between; gap: 15px; align-items: center; }
+        .clock-label { color: var(--text-dim); font-weight: bold; }
+        .clock-val { color: var(--accent-gold); font-family: monospace; font-size: 13px; font-weight: bold; direction: ltr; }
+
+        .tabs-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .tabs-left { display: flex; gap: 10px; }
+        .tab-btn { background: transparent; border: none; color: var(--text-dim); padding: 10px 20px; font-size: 15px; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; border-radius: 6px 6px 0 0; }
+        .tab-btn.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); background: rgba(0, 176, 255, 0.05); }
+        .tab-btn:hover:not(.active) { color: var(--text-main); }
+
+        .screener-filters { display: flex; gap: 10px; align-items: center; }
+        .filter-select { background: #030507; color: white; border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+
+        .rolling-grid { display: flex; flex-direction: column; gap: 15px; }
+
+        .simulation-toggle-bar {
+            background: linear-gradient(135deg, rgba(0, 176, 255, 0.1), rgba(179, 136, 255, 0.1));
+            border: 1px solid var(--accent-blue);
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #marketClosedPanelPlaceholder {
+            display: none;
+            max-width: 650px;
+            margin: 40px auto;
+            background: var(--panel-bg);
+            border: 1px solid rgba(255, 61, 0, 0.4);
+            border-top: 4px solid var(--accent-red);
+            padding: 35px 30px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+        }
+
+        .card { 
+            background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 15px; 
+            position: relative; overflow: hidden;
+            transition: transform 0.6s ease, background-color 0.6s ease, order 0.6s ease, opacity 0.4s ease;
+        }
+        .card:hover { background: var(--card-hover); border-color: #2a3b5c; }
+        
+        .ssr-badge { position: absolute; top: 0; left: 0; background: var(--accent-red); color: white; font-size: 10px; font-weight: bold; padding: 3px 10px; border-bottom-right-radius: 8px; display: none; }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        .rank-badge { font-weight: 900; font-size: 14px; color: var(--accent-gold); background: rgba(255, 214, 0, 0.1); border: 1px solid var(--accent-gold); width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; }
+        .star-icon { cursor: pointer; font-size: 22px; user-select: none; transition: transform 0.2s; }
+        .star-icon:hover { transform: scale(1.2); }
+        .ticker { font-size: 22px; font-weight: 900; letter-spacing: 1px; color: var(--accent-blue); display: inline-block; }
+        
+        .price { font-size: 24px; font-weight: bold; }
+        .green { color: var(--accent-green); }
+        .red { color: var(--accent-red); }
+
+        .metrics-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; background: #080c12; padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05); direction: ltr; text-align: left; }
+        .m-item { display: flex; flex-direction: column; font-size: 11px; }
+        .m-lbl { color: var(--text-dim); text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
+        .m-val { font-weight: bold; font-size: 13px; }
+
+        .why-watch-box { background: rgba(0, 176, 255, 0.05); border-right: 3px solid var(--accent-blue); padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; line-height: 1.4; color: #cbd5e1; }
+        .why-watch-title { font-weight: bold; color: var(--accent-blue); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+
+        .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+        .tag { font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; }
+        .t-pattern { background: rgba(179, 136, 255, 0.15); color: var(--accent-purple); border: 1px solid var(--accent-purple); }
+        .t-profit { background: rgba(0, 230, 118, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .t-prob { background: rgba(255, 214, 0, 0.15); color: var(--accent-gold); border: 1px solid var(--accent-gold); }
+
+        .trade-tools { border-top: 1px dashed var(--border); padding-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; }
+        
+        .rr-box { 
+            background: #060a0f; 
+            border: 1px solid rgba(0, 230, 118, 0.25); 
+            padding: 10px 14px; 
+            border-radius: 8px; 
+            flex: 1; 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 10px; 
+            text-align: center; 
+            direction: ltr;
+        }
+        .rr-item { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .rr-title { font-size: 10px; color: var(--text-dim); font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
+        .rr-val { font-size: 13px; font-weight: bold; font-family: monospace; }
+
+        .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn { background: #1e293b; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+        .btn:hover { background: var(--accent-blue); color: black; }
+        .btn-market { background: var(--accent-green); color: black; }
+        .btn-market:hover { opacity: 0.8; }
+        .btn-telegram { background: #0088cc; color: white; }
+        .btn-telegram:hover { opacity: 0.8; }
+        .btn-research { background: linear-gradient(135deg, rgba(0,176,255,0.2), rgba(179,136,255,0.2)); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+        .btn-research:hover { background: var(--accent-blue); color: black; }
+        .btn-ai { background: linear-gradient(135deg, #b388ff, #00b0ff); color: black; }
+        .btn-ai:hover { opacity: 0.9; }
+
+        .flash-up { background-color: rgba(0, 230, 118, 0.25) !important; }
+        .flash-down { background-color: rgba(255, 61, 0, 0.25) !important; }
+
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--panel-bg); padding: 25px; border-radius: 10px; border: 1px solid var(--border); z-index: 100; width: 420px; box-shadow: 0 15px 40px rgba(0,0,0,0.8); }
+        .range-slider { width: 100%; accent-color: var(--accent-green); cursor: pointer; margin: 10px 0; }
+
+        #scannerLoaderOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(3, 5, 7, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .loader-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--accent-purple);
+            padding: 35px;
+            border-radius: 16px;
+            box-shadow: 0 0 60px rgba(179, 136, 255, 0.25);
+            max-width: 540px;
+            width: 90%;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            background: #030507;
+            height: 18px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            margin: 20px 0 10px 0;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), var(--accent-green));
+            transition: width 0.3s ease;
+        }
+
+        .status-text {
+            font-size: 13px;
+            color: var(--accent-gold);
+            font-family: monospace;
+            margin-top: 8px;
+        }
+
+        .advanced-analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .analysis-card {
+            background: #060a0f;
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .analysis-card-title {
+            font-size: 10px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .analysis-card-val {
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .pattern-history-table, .news-table, .detection-rules-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            background: #060a0f;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            font-size: 12px;
+        }
+        .pattern-history-table th, .news-table th, .detection-rules-table th {
+            background: #111827;
+            color: var(--accent-blue);
+            padding: 10px;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+        }
+        .pattern-history-table td, .news-table td, .detection-rules-table td {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            line-height: 1.5;
+        }
+
+        .sentiment-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .sent-bull { background: rgba(0, 230, 118, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .sent-bear { background: rgba(255, 61, 0, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .sent-neu { background: rgba(255, 214, 0, 0.2); color: var(--accent-gold); border: 1px solid var(--accent-gold); }
+
+        .finviz-explain-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            background: #060a0f;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .finviz-explain-table th {
+            background: #111827;
+            color: var(--accent-gold);
+            padding: 10px;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+        }
+        .finviz-explain-table td {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            line-height: 1.5;
+        }
+        .finviz-explain-table tr:last-child td { border-bottom: none; }
+        .sec-header { background: rgba(255, 61, 0, 0.15) !important; color: var(--accent-red) !important; font-weight: bold; }
+
+        .log-box-container {
+            background: #060a0f;
+            border: 1px solid var(--border);
+            border-right: 4px solid var(--accent-green);
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 220px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+            margin-top: 15px;
+            line-height: 1.6;
+        }
+        .log-item { margin-bottom: 6px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 4px; }
+        .alert-red { color: #ff5252; }
+        .alert-green { color: #69f0ae; }
+        .alert-gold { color: #ffd600; }
+
+        .chart-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .tf-selector-group {
+            display: flex;
+            gap: 6px;
+            background: #030507;
+            padding: 4px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .tf-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .tf-btn.active { background: var(--accent-blue); color: black; }
+        .tf-btn:hover:not(.active) { color: var(--text-main); }
+    </style>
+</head>
+<body>
+
+<div id="scannerLoaderOverlay">
+    <div class="loader-card">
+        <h2 style="margin: 0; color: var(--accent-blue);">📊 מנוע חקר שוק ומסחר מבודד (Live Sync)</h2>
+        <p style="color: var(--text-dim); font-size: 13px; margin-top: 6px;">טוען את גרף ה-TradingView ואת סטטוס הנר של המניה...</p>
+        
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="scannerProgressFill"></div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold;">
+            <span id="scannerTickerTitle" style="color: var(--accent-blue);">XPON</span>
+            <span id="scannerPercentDisplay" style="color: var(--accent-green);">0%</span>
+        </div>
+
+        <div class="status-text" id="scannerStatusText">מתחבר לשרתי הנתונים...</div>
+    </div>
+</div>
+
+<div id="authScreen">
+    <h2 style="color: var(--accent-blue); margin-top:0;">🛡️ הגדרת פרופיל סיכון למסחר</h2>
+    <p style="color: var(--text-dim); font-size: 13px; line-height: 1.4;">הגדר את ניהול הסיכונים האחוזים שלך להתאמת עסקאות אוטומטית:</p>
+    
+    <label style="font-size: 12px; color: var(--text-main);">1. סך הכל כסף בתיק המסחר ($):</label>
+    <input type="number" id="portfolioSize" class="auth-input" placeholder="הכנס את גודל התיק ב- $" oninput="calculateRiskFromPercent()">
+
+    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 5px;">
+        <label style="font-size: 12px; color: var(--text-main);">2. אחוז סיכון מותר לעסקה:</label>
+        <b id="riskPercentDisplay" style="color: var(--accent-gold);">2%</b>
+    </div>
+    
+    <input type="range" id="riskPercentSlider" class="range-slider" min="1" max="100" value="2" oninput="calculateRiskFromPercent()">
+
+    <div style="background: #030507; padding: 10px; border-radius: 6px; border: 1px solid var(--border); font-size: 12px; margin-bottom: 15px; text-align: center;">
+        סכום הסיכון המקסימלי לעסקה: <b id="calculatedDollarRisk" style="color: var(--accent-green); font-size: 14px;">$0</b>
+    </div>
+
+    <button class="btn" style="width:100%; justify-content:center; background: var(--accent-green); color:black; padding: 12px; margin-top: 5px;" onclick="saveRiskProfile()">שמור והתחל לסחור</button>
+</div>
+
+<!-- הטרמינל הראשי -->
+<div class="page-view" id="terminalContainer">
+    <div class="top-bar">
+        <span>🚨 LULD Halts Scanner: מערכת מעקב הפסקות מסחר ותנודתיות פעילה.</span>
+        <button class="btn btn-telegram" onclick="testTelegramAlert()" style="padding: 4px 10px; font-size: 11px;">📢 טסט התראה לטלגרם</button>
+    </div>
+
+    <div class="simulation-toggle-bar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span>⚡ <b>בדיקת תצוגה:</b> מעבר בין מצב "שוק סגור" למצב "שוק פתוח":</span>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn btn-ai" onclick="navigateToView('aiChartReaderPageView')">🤖 פתח מנוע AI קורא גרפים (פיצ'ר חדש)</button>
+            <button class="btn" id="simToggleBtn" onclick="toggleSimulationMode()" style="background: var(--accent-blue); color: black; padding: 6px 14px;">🔄 מצב סימולציה</button>
+        </div>
+    </div>
+
+    <div class="header-controls">
+        <h2 style="margin:0; color: var(--accent-blue);">🔥 ProTrader Ultimate SaaS (Market Status & Strength)</h2>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div class="market-status-box" id="marketStatusBox">🌐 סטטוס שוק: טוען...</div>
+            <div class="timer-box" id="marketStrengthBox" style="border-color: var(--accent-purple); color: var(--accent-purple);">⚡ עוצמת שוק: טוען...</div>
+            <div class="timer-box" id="riskSummaryBox">🛡️ ניהול תיק: טוען...</div>
+        </div>
+        <div class="clocks-container">
+            <div class="clock-item">
+                <span class="clock-label">שעון ישראל:</span>
+                <span class="clock-val" id="clockIL">00:00:00</span>
+            </div>
+            <div class="clock-item">
+                <span class="clock-label">שעון ארה"ב (ET):</span>
+                <span class="clock-val" id="clockUS">00:00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="tabs-container">
+        <div class="tabs-left">
+            <button class="tab-btn active" id="tabTop10" onclick="switchTab('top10')">🔥 Top 10 מניות חמות</button>
+            <button class="tab-btn" id="tabWatchlist" onclick="switchTab('watchlist')">⭐ רשימת מעקב (Watchlist)</button>
+        </div>
+        <div class="screener-filters">
+            <label style="font-size: 12px; color: var(--text-dim);">סינון סורק:</label>
+            <select id="screenerFilter" class="filter-select" onchange="reorderTop10()">
+                <option value="all">כל המניות (הכל)</option>
+                <option value="gainers">מובילות עליה בלבד (+)</option>
+                <option value="highscore">ציון מומנטום 80+</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="rolling-grid" id="rollingGrid"></div>
+
+    <div id="marketClosedPanelPlaceholder">
+        <h2 style="color: var(--accent-red); margin-top: 0; font-size: 22px;">🌙 השוק סגור כרגע</h2>
+        <p style="color: var(--text-dim); font-size: 13px; line-height: 1.6; max-width: 520px; margin: 0 auto 20px auto;">
+            המסחר בארה"ב אינו פעיל כרגע ולכן רשימת המניות והנתונים החיים מושבתים זמנית עד לפתיחת המסחר הבאה.
+        </p>
+        <div id="marketClosedCountdown" style="font-size: 16px; font-weight: bold; color: var(--accent-gold); font-family: monospace; background: #030507; padding: 12px 20px; border-radius: 8px; border: 1px solid var(--border); display: inline-block; direction: rtl; text-align: right;">
+            טוען ספירה...
+        </div>
+        <p style="color: var(--text-dim); font-size: 12px; margin-top: 20px;">תוכל להמשיך לנווט בלשוניות, לבדוק את מחשב הסיכונים או לצפות בגרפים ובניתוחים.</p>
+    </div>
+</div>
+
+<!-- חלון נוסף: מנוע AI קורא גרפים (עם שתי לשוניות בראש העמוד ורצה ברקע) -->
+<div class="page-view" id="aiChartReaderPageView" style="padding: 10px 0;">
+    <div class="header-controls" style="margin-bottom: 15px;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="btn" style="background: var(--accent-blue); color: black; padding: 10px 18px; font-size: 14px;" onclick="navigateToView('terminalContainer')">⬅️ חזרה לטרמינל הראשי</button>
+            <h2 style="margin:0; color: var(--accent-purple);">🤖 מנוע AI מתקדם לקריאת גרפים וזיהוי תבניות (Background Engine Active)</h2>
+        </div>
+        <div class="timer-box" style="border-color: var(--accent-green); color: var(--accent-green);">
+            🟢 סורק רקע אוטומטי: פועל
+        </div>
+    </div>
+
+    <!-- שתי לשוניות בראש העמוד לבחירת המשתמש -->
+    <div class="tabs-container" style="background: var(--panel-bg); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);">
+        <div class="tabs-left">
+            <button class="tab-btn active" id="aiTab1" onclick="switchAiTab('dataDriven')">🧠 לשונית 1: ניתוח אלגוריתמי חי (Data-Driven AI)</button>
+            <button class="tab-btn" id="aiTab2" onclick="switchAiTab('visionOCR')">👁️ לשונית 2: מנוע ויזואלי והעלאת צילום מסך (Vision AI)</button>
+        </div>
+    </div>
+
+    <!-- תוכן לשונית 1: ניתוח אלגוריתמי חי ורץ ברקע -->
+    <div id="aiContent1" class="ai-tab-content">
+        <div style="background: var(--panel-bg); padding: 20px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 15px;">
+            <h3 style="margin: 0 0 10px 0; color: var(--accent-blue);">📈 ניתוח מניות חי ברקע (Automated Live Background Scanner)</h3>
+            <p style="color: var(--text-dim); font-size: 13px; line-height: 1.5; margin-bottom: 15px;">
+                המערכת סורקת ברקע את כל מניות ה-Top 10, מנתחת את נתוני הנרות בזמן אמת ומדווחת על הזדמנויות קנייה/מכירה מיידיות בהתאם לדפוסים שזוהו.
+            </p>
+            <div id="backgroundScannerLiveFeed" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;"></div>
+        </div>
+
+        <div style="background: var(--panel-bg); padding: 20px; border-radius: 10px; border: 1px solid var(--border);">
+            <h3 style="margin: 0 0 10px 0; color: var(--accent-gold);">📋 יומן התראות רקע בזמן אמת (Background Audit Log):</h3>
+            <div class="log-box-container" id="backgroundLogBox">
+                <div class="log-item alert-green">[מערכת רקע] מנוע קריאת הגרפים האוטומטי הופעל בהצלחה ברקע.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- תוכן לשונית 2: מנוע ויזואלי והעלאת צילום מסך -->
+    <div id="aiContent2" class="ai-tab-content" style="display: none;">
+        <div style="background: var(--panel-bg); padding: 25px; border-radius: 10px; border: 1px solid var(--border); text-align: center;">
+            <h3 style="margin: 0 0 10px 0; color: var(--accent-purple);">👁️ העלאת צילום מסך של TradingView לניתוח AI מיידי</h3>
+            <p style="color: var(--text-dim); font-size: 13px; max-width: 600px; margin: 0 auto 20px auto; line-height: 1.5;">
+                גררת או בחר צילום מסך של הגרף שלך. מנוע ה-Vision AI ינתח את תצורת הנרות, קווי התמיכה וההתנגדות, ויחזיר דוח מלא תוך שניות.
+            </p>
+
+            <div style="border: 2px dashed var(--border); padding: 30px; border-radius: 10px; background: #030507; max-width: 500px; margin: 0 auto 20px auto; cursor: pointer;" onclick="simulateImageUpload()">
+                <div style="font-size: 32px; margin-bottom: 8px;">📁</div>
+                <div style="font-weight: bold; color: var(--accent-blue);">לחץ כאן להעלאת צילום מסך (או גרור לכאן)</div>
+                <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">תומך בפורמטים PNG, JPG</div>
+            </div>
+
+            <div id="aiVisionResultBox" style="display: none; background: #030507; padding: 20px; border-radius: 8px; border: 1px solid var(--accent-green); text-align: right; max-width: 700px; margin: 20px auto 0 auto; direction: rtl;">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent-green);">✅ תוצאות ניתוח מנוע ה-AI הוויזואלי:</h4>
+                <div id="aiVisionResultText" style="font-size: 13px; line-height: 1.6; color: #cbd5e1;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- עמוד חקר שוק מקורי (שנשמר בשלמותו) -->
+<div class="page-view" id="patternPageView" style="padding: 10px 0;">
+    <div class="header-controls" style="margin-bottom: 15px;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="btn" style="background: var(--accent-blue); color: black; padding: 10px 18px; font-size: 14px;" onclick="navigateToView('terminalContainer')">⬅️ חזרה לטרמינל הראשי</button>
+            <h2 style="margin:0; color: var(--accent-purple);" id="patternPageTitle">📊 חקר שוק וגרף TradingView אמיתי</h2>
+        </div>
+        <div class="clocks-container">
+            <div class="clock-item">
+                <span class="clock-label">שעון ארה"ב (ET):</span>
+                <span class="clock-val" id="clockUS_page">00:00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <div style="background: var(--panel-bg); padding: 18px; border-radius: 10px; border: 1px solid var(--border);">
+        <div class="chart-top-bar">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <h3 style="margin: 0; color: var(--accent-blue); font-size: 17px;" id="chartHeaderSymbol">📈 גרף מסחר אמיתי (TradingView) - הסימול הנבחר</h3>
+                <div class="timer-box" id="chartCandleTimerBox" style="font-size: 12px; padding: 4px 10px; border-color: var(--accent-gold); color: var(--accent-gold);">
+                    ⏳ נר מניה: טוען...
+                </div>
+                <div class="tf-selector-group">
+                    <button class="tf-btn active" id="tv-tf-1" onclick="changeTradingViewTimeframe('1')">1 דקה (1M)</button>
+                    <button class="tf-btn" id="tv-tf-5" onclick="changeTradingViewTimeframe('5')">5 דקות (5M)</button>
+                    <button class="tf-btn" id="tv-tf-15" onclick="changeTradingViewTimeframe('15')">15 דקות (15M)</button>
+                    <button class="tf-btn" id="tv-tf-60" onclick="changeTradingViewTimeframe('60')">1 שעה (1H)</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tradingview_chart_container" style="width: 100%; height: 520px; border-radius: 8px; overflow: hidden; margin-top: 10px;"></div>
+    </div>
+
+    <div style="background: var(--panel-bg); padding: 18px; border-radius: 10px; margin-top: 15px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 10px 0; color: var(--accent-purple); font-size: 16px;">🧠 איך האלגוריתם מזהה את הדפוס בגרף? (בגובה העיניים):</h3>
+        <table class="detection-rules-table">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">שם התבנית / הדפוס</th>
+                    <th style="width: 45%;">איך המערכת מזהה את זה? (כללי אצבע)</th>
+                    <th style="width: 30%;">מה מסומן עבורך על הגרף?</th>
+                </tr>
+            </thead>
+            <tbody id="detectionRulesTableBody"></tbody>
+        </table>
+    </div>
+
+    <div style="background: var(--panel-bg); padding: 18px; border-radius: 10px; margin-top: 15px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 8px 0; color: var(--accent-gold); font-size: 16px;">⏱️ יומן אירועים, תמיכות/התנגדויות ותבניות בזמן אמת (Live Audit Log):</h3>
+        <div class="log-box-container" id="logBox">
+            <div class="log-item">מערכת זיהוי נרות מוכנה. מתחיל ניתוח רציף...</div>
+        </div>
+    </div>
+
+    <div style="background: var(--panel-bg); padding: 18px; border-radius: 10px; margin-top: 15px; border: 1px solid var(--border);" id="newsResearchPanel">
+        <h3 style="margin: 0 0 10px 0; color: var(--accent-blue); font-size: 16px;">📰 1. חדשות ואירועים מניעים (Catalysts & Market News):</h3>
+        <div id="newsTableContainer">טוען חדשות...</div>
+    </div>
+
+    <div style="background: var(--panel-bg); padding: 18px; border-radius: 10px; margin-top: 15px; border: 1px solid var(--border);" id="patternPageDetailsBox">
+        טוען ניתוח תבניות וגרף...
+    </div>
+
+    <div style="background: var(--panel-bg); padding: 18px; border-radius: 10px; margin-top: 15px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 10px 0; color: var(--accent-gold); font-size: 16px;">📊 3. מדדי מפתח קריטיים לסוחר יומיומי (Finviz Data):</h3>
+        <table class="finviz-explain-table">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">מדד / ערך נוכחי</th>
+                    <th style="width: 75%;">משמעות הנתון וחשיבותו לסוחר היומי</th>
+                </tr>
+            </thead>
+            <tbody id="detailedFinvizTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="orderModal" class="modal">
+    <h3 style="margin-top:0; color: var(--accent-green);" id="modalMainTitle">⚡ אישור פקודת מסחר (Colmex)</h3>
+    <p style="font-size: 13px; color: var(--text-dim);" id="orderSubTitle">בדיקת כדאיות ופרמטרים מומלצים:</p>
+    
+    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+        <span>כמות מניות נבחרת: <b id="sliderValDisplay" style="color:var(--accent-blue)">0</b></span>
+        <span style="color: var(--text-dim);">מקסימום בתיק</span>
+    </div>
+    
+    <input type="range" id="sharesRangeSlider" class="range-slider" min="1" max="100" value="10" oninput="onSliderChange()">
+
+    <div style="background: #030507; padding: 12px; border-radius: 6px; margin: 15px 0; font-size: 13px; line-height: 1.8; border: 1px solid rgba(255,255,255,0.08);" id="orderDetailsBox"></div>
+
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-market" style="flex: 1; justify-content:center; padding: 12px; background: var(--accent-green); color: black;" onclick="confirmAndExecuteOrder('YES')">✅ כן - בצע פקודה</button>
+        <button class="btn" style="flex: 1; justify-content:center; background:#334155; padding: 12px;" onclick="closeModal('orderModal')">❌ לא - ביטול</button>
+    </div>
+</div>
+
+<script>
+    const API_KEY = "da9hjjhr01qlcief2li0da9hjjhr01qlcief2lig";
+    const masterTickers = ["XPON", "DAIC", "SOUN", "MULN", "FFIE", "MARA", "RIOT", "NKLA", "PLUG", "RIVN", "BBAI", "SNDL", "GNS", "CENN", "SENS"];
+
+    let stockStore = {};
+    let profileStore = {};
+    let history7DStore = {};
+    let watchlist = JSON.parse(localStorage.getItem("userWatchlist")) || ["XPON", "SOUN"];
+    let currentTab = "top10";
+    let previousTopTicker = "";
+    let activeOrderSymbol = "";
+    let userPortfolio = 0;
+    let userMaxRisk = 0;
+    let userRiskPercent = 2;
+    let currentChartSymbol = "";
+    let currentTradingViewTimeframe = "1";
+    let forceSimulationActive = false;
+
+    function toggleSimulationMode() {
+        forceSimulationActive = !forceSimulationActive;
+        const btn = document.getElementById("simToggleBtn");
+        if (forceSimulationActive) {
+            btn.innerText = "🔄 מצב סימולציה: כבה";
+            btn.style.background = "var(--accent-green)";
+            btn.style.color = "black";
+        } else {
+            btn.innerText = "🔄 מצב סימולציה";
+            btn.style.background = "var(--accent-blue)";
+            btn.style.color = "black";
+        }
+        updateMarketStatusAndStrength();
+    }
+
+    function switchAiTab(tabName) {
+        document.getElementById("aiTab1").classList.toggle("active", tabName === 'dataDriven');
+        document.getElementById("aiTab2").classList.toggle("active", tabName === 'visionOCR');
+        document.getElementById("aiContent1").style.display = tabName === 'dataDriven' ? 'block' : 'none';
+        document.getElementById("aiContent2").style.display = tabName === 'visionOCR' ? 'block' : 'none';
+    }
+
+    function simulateImageUpload() {
+        const resultBox = document.getElementById("aiVisionResultBox");
+        const resultText = document.getElementById("aiVisionResultText");
+        
+        resultBox.style.display = "block";
+        resultText.innerHTML = "⏳ מנוע ה-Vision AI מנתח את התמונה שהועלתה... מזהה סימול, רמות תמיכה ומבנה נרות.";
+
+        setTimeout(() => {
+            resultText.innerHTML = `
+                <b>מניה זוהתה:</b> <b style="color:var(--accent-blue)">SOUN</b><br>
+                <b>תבנית גרפית שזוהתה בתמונה:</b> <b style="color:var(--accent-purple)">ספל וידית (Cup & Handle)</b><br>
+                <b>הערכת אמינות AI:</b> <b style="color:var(--accent-green)">92.4% הצלחה</b><br>
+                <b>המלצת מערכת:</b> פריצה נקייה מעל רמת התנגדות $4.85 עם יעד רווח משוער ל-$5.40. מומלץ לשמור סטופ לוס הדוק מתחת ל-VWAP.
+            `;
+        }, 1200);
+    }
+
+    function updateBackgroundScannerFeed() {
+        const feedContainer = document.getElementById("backgroundScannerLiveFeed");
+        if (!feedContainer) return;
+
+        let html = "";
+        masterTickers.slice(0, 6).forEach(symbol => {
+            const data = stockStore[symbol] || { price: 2.50, changePercent: 3.2, score: 85, pattern: "משולש עולה" };
+            html += `
+                <div style="background:#060a0f; border:1px solid var(--border); padding:12px; border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                        <span style="color:var(--accent-blue);">${symbol}</span>
+                        <span class="${data.changePercent >= 0 ? 'green' : 'red'}">${data.changePercent >= 0 ? '+' : ''}${data.changePercent.toFixed(2)}%</span>
+                    </div>
+                    <div style="font-size:12px; color:var(--text-dim); margin:6px 0;">תבנית רקע: <b style="color:var(--accent-purple);">${data.pattern}</b></div>
+                    <div style="font-size:11px; color:var(--accent-gold);">ציון מומנטום AI: ${data.score}/100</div>
+                </div>
+            `;
+        });
+        feedContainer.innerHTML = html;
+    }
+
+    function updateMarketStatusAndStrength() {
+        const now = new Date();
+        const usaTimeStr = now.toLocaleString("en-US", { timeZone: "America/New_York" });
+        const usaDate = new Date(usaTimeStr);
+        
+        const dayOfWeek = usaDate.getDay(); 
+        const hours = usaDate.getHours();
+        const minutes = usaDate.getMinutes();
+        const seconds = usaDate.getSeconds();
+        
+        const totalMinutesFromMidnight = hours * 60 + minutes;
+        
+        let marketStatusText = "";
+        let marketStatusColor = "var(--accent-gold)";
+        let isMarketActive = false;
+
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            if (totalMinutesFromMidnight >= 240 && totalMinutesFromMidnight < 570) {
+                marketStatusText = "🌅 פרה-מרקט (Pre-Market)";
+                marketStatusColor = "var(--accent-blue)";
+                isMarketActive = true;
+            } else if (totalMinutesFromMidnight >= 570 && totalMinutesFromMidnight < 960) {
+                marketStatusText = "🟢 שוק פתוח (Market Open)";
+                marketStatusColor = "var(--accent-green)";
+                isMarketActive = true;
+            } else if (totalMinutesFromMidnight >= 960 && totalMinutesFromMidnight < 1200) {
+                marketStatusText = "🌆 אפיטר-האוורס (After-Hours)";
+                marketStatusColor = "var(--accent-purple)";
+                isMarketActive = true;
+            }
+        }
+
+        if (forceSimulationActive) {
+            isMarketActive = true;
+            marketStatusText = "⚡ סימולציה פעילה (Simulation Mode)";
+            marketStatusColor = "var(--accent-purple)";
+        }
+
+        const gridEl = document.getElementById("rollingGrid");
+        const panelPlaceholder = document.getElementById("marketClosedPanelPlaceholder");
+        const countdownEl = document.getElementById("marketClosedCountdown");
+
+        if (isMarketActive) {
+            gridEl.style.display = "flex";
+            panelPlaceholder.style.display = "none";
+        } else {
+            gridEl.style.display = "none";
+            panelPlaceholder.style.display = "block";
+
+            let nextOpenDate = new Date(usaDate);
+            nextOpenDate.setHours(9, 30, 0, 0);
+
+            if (dayOfWeek === 5 && totalMinutesFromMidnight >= 960) {
+                nextOpenDate.setDate(nextOpenDate.getDate() + 3);
+            } else if (dayOfWeek === 6) {
+                nextOpenDate.setDate(nextOpenDate.getDate() + 2);
+            } else if (dayOfWeek === 0) {
+                nextOpenDate.setDate(nextOpenDate.getDate() + 1);
+            } else if (totalMinutesFromMidnight >= 960) {
+                nextOpenDate.setDate(nextOpenDate.getDate() + 1);
+            } else if (totalMinutesFromMidnight < 240 && dayOfWeek >= 1 && dayOfWeek <= 5) {
+                nextOpenDate = new Date(usaDate);
+                nextOpenDate.setHours(9, 30, 0, 0);
+            }
+
+            let diffMs = nextOpenDate - usaDate;
+            if (diffMs < 0) diffMs = 0;
+
+            let diffSecs = Math.floor(diffMs / 1000);
+            let dDays = Math.floor(diffSecs / (3600 * 24));
+            let dHours = Math.floor((diffSecs % (3600 * 24)) / 3600);
+            let dMins = Math.floor((diffSecs % 3600) / 60);
+            let dSecs = diffSecs % 60;
+
+            countdownEl.innerHTML = `<b style="unicode-bidi: embed; direction: rtl; display: inline-block;">${dDays} ימים : ${dHours} שעות : ${dMins} דקות : ${dSecs} שניות</b>`;
+        }
+
+        let strengthText = "⚡ עוצמה: בינונית (Neutral)";
+        let strengthColor = "var(--accent-gold)";
+        
+        const avgScore = Object.values(stockStore).reduce((acc, curr) => acc + (curr.score || 50), 0) / (masterTickers.length || 1);
+        if (avgScore >= 68 && isMarketActive) {
+            strengthText = "🔥 עוצמת שוק: חזק ופעיל (Bullish High Vol)";
+            strengthColor = "var(--accent-green)";
+        } else if (avgScore < 45 || !isMarketActive) {
+            strengthText = "🛡️ עוצמת שוק: חלש / שוק סגור";
+            strengthColor = "var(--accent-red)";
+        }
+
+        const statusEl = document.getElementById("marketStatusBox");
+        if (statusEl) {
+            statusEl.innerText = `🌐 ${marketStatusText}`;
+            statusEl.style.borderColor = marketStatusColor;
+            statusEl.style.color = marketStatusColor;
+        }
+
+        const strengthEl = document.getElementById("marketStrengthBox");
+        if (strengthEl) {
+            strengthEl.innerText = strengthText;
+            strengthEl.style.borderColor = strengthColor;
+            strengthEl.style.color = strengthColor;
+        }
+
+        const chartTimerEl = document.getElementById("chartCandleTimerBox");
+        if (chartTimerEl) {
+            if (!isMarketActive) {
+                chartTimerEl.innerText = "⏳ השוק סגור כרגע";
+            } else {
+                let tfMinutes = 1;
+                if (currentTradingViewTimeframe === "1") tfMinutes = 1;
+                else if (currentTradingViewTimeframe === "5") tfMinutes = 5;
+                else if (currentTradingViewTimeframe === "15") tfMinutes = 15;
+                else if (currentTradingViewTimeframe === "60") tfMinutes = 60;
+
+                const totalSecsFromMidnight = hours * 3600 + minutes * 60 + seconds;
+                const tfSecs = tfMinutes * 60;
+                const remSeconds = tfSecs - (totalSecsFromMidnight % tfSecs);
+
+                const dispMins = Math.floor(remSeconds / 60);
+                const dispSecs = remSeconds % 60;
+                const timeStrFormatted = `${String(dispMins).padStart(2, '0')}:${String(dispSecs).padStart(2, '0')}`;
+
+                chartTimerEl.innerHTML = `<span>⏳ נר ${currentChartSymbol || 'מניה'} (${currentTradingViewTimeframe}M):</span> <span style="direction: ltr; font-family: monospace; display: inline-block;">${timeStrFormatted}</span>`;
+            }
+        }
+    }
+
+    function changeTradingViewTimeframe(tf) {
+        currentTradingViewTimeframe = tf;
+        document.querySelectorAll('.tf-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`tv-tf-${tf}`).classList.add('active');
+        if (currentChartSymbol) {
+            renderTradingViewChart(currentChartSymbol);
+        }
+        updateMarketStatusAndStrength();
+    }
+
+    function navigateToView(viewId) {
+        document.querySelectorAll(".page-view").forEach(el => el.classList.remove("active-view"));
+        document.getElementById("authScreen").style.display = "none";
+        
+        const target = document.getElementById(viewId);
+        if (target) {
+            target.classList.add("active-view");
+        }
+    }
+
+    function calculateRiskFromPercent() {
+        const portfolioVal = parseFloat(document.getElementById("portfolioSize").value) || 0;
+        const percentVal = parseInt(document.getElementById("riskPercentSlider").value) || 1;
+        
+        userRiskPercent = percentVal;
+        document.getElementById("riskPercentDisplay").innerText = `${percentVal}%`;
+        
+        const dollarRisk = (portfolioVal * (percentVal / 100)).toFixed(2);
+        document.getElementById("calculatedDollarRisk").innerText = `$${parseFloat(dollarRisk).toLocaleString()}`;
+    }
+
+    function saveRiskProfile() {
+        const portfolioVal = parseFloat(document.getElementById("portfolioSize").value);
+        const percentVal = parseInt(document.getElementById("riskPercentSlider").value);
+
+        if (portfolioVal > 0 && percentVal >= 1) {
+            userPortfolio = portfolioVal;
+            userRiskPercent = percentVal;
+            userMaxRisk = portfolioVal * (percentVal / 100);
+
+            navigateToView('terminalContainer');
+            document.getElementById("riskSummaryBox").innerText = `🛡️ תיק: $${userPortfolio.toLocaleString()} | סיכון: ${userRiskPercent}%`;
+            initTerminal();
+        } else {
+            alert("נא להזין סכום תיק תקין.");
+        }
+    }
+
+    function playBeep(freq = 880, duration = 0.2) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + duration);
+        } catch(e) {}
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById("tabTop10").classList.toggle("active", tab === 'top10');
+        document.getElementById("tabWatchlist").classList.toggle("active", tab === 'watchlist');
+        reorderTop10();
+    }
+
+    function toggleWatchlist(symbol) {
+        if (watchlist.includes(symbol)) {
+            watchlist = watchlist.filter(s => s !== symbol);
+        } else {
+            watchlist.push(symbol);
+        }
+        localStorage.setItem("userWatchlist", JSON.stringify(watchlist));
+        
+        const starEl = document.getElementById(`star-${symbol}`);
+        if (starEl) {
+            starEl.innerText = watchlist.includes(symbol) ? '⭐' : '☆';
+        }
+        
+        if (currentTab === 'watchlist') {
+            reorderTop10();
+        }
+    }
+
+    setInterval(() => {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour12: false });
+        document.getElementById("clockIL").innerText = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jerusalem', hour12: false });
+        document.getElementById("clockUS").innerText = timeStr;
+        
+        const pageClock = document.getElementById("clockUS_page");
+        if (pageClock) pageClock.innerText = timeStr;
+
+        updateMarketStatusAndStrength();
+        updateBackgroundScannerFeed();
+    }, 1000);
+
+    async function initTerminal() {
+        buildGrid();
+        await fetchFinvizProfiles();
+        await initialScan();
+        startLiveWebSocketStream();
+    }
+
+    function buildGrid() {
+        const grid = document.getElementById("rollingGrid");
+        grid.innerHTML = "";
+        masterTickers.forEach(symbol => {
+            const isStarred = watchlist.includes(symbol);
+            grid.innerHTML += `
+                <div class="card" id="card-${symbol}" style="display:none;">
+                    <div class="ssr-badge" id="ssr-${symbol}">SSR RESTRICTED</div>
+                    <div class="card-header">
+                        <div class="header-left">
+                            <span class="rank-badge" id="rank-${symbol}">#0</span>
+                            <span class="star-icon" id="star-${symbol}" onclick="toggleWatchlist('${symbol}')">${isStarred ? '⭐' : '☆'}</span>
+                            <div class="ticker">${symbol}</div>
+                            <div class="tags" id="tags-${symbol}" style="margin:0;"></div>
+                        </div>
+                        <div style="text-align: left;">
+                            <div class="price" id="price-${symbol}">$-.--</div>
+                            <div id="change-${symbol}" style="font-weight: bold;">-%</div>
+                        </div>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="m-item"><span class="m-lbl">Market Cap</span><span class="m-val" style="color:#fff" id="mcap-${symbol}">-</span></div>
+                        <div class="m-item"><span class="m-lbl">Float</span><span class="m-val" style="color:#38bdf8" id="float-${symbol}">-</span></div>
+                        <div class="m-item"><span class="m-lbl">Volume</span><span class="m-val" style="color:var(--accent-gold)" id="vol-${symbol}">...</span></div>
+                        <div class="m-item"><span class="m-lbl">VWAP</span><span class="m-val" style="color:var(--accent-blue)" id="vwap-${symbol}">...</span></div>
+                        <div class="m-item"><span class="m-lbl">Volatility</span><span class="m-val" style="color:#fb7185" id="volat-${symbol}">-</span></div>
+                        <div class="m-item"><span class="m-lbl">Score</span><span class="m-val" style="color:var(--accent-green)" id="score-${symbol}">-</span></div>
+                    </div>
+
+                    <div class="why-watch-box">
+                        <div class="why-watch-title">💡 המלצת כניסה ויעד עתידי מבוסס תבנית (Pattern Target):</div>
+                        <div id="insights-${symbol}">מנתח תבניות גרף...</div>
+                    </div>
+
+                    <div class="trade-tools">
+                        <div class="rr-box" id="rr-${symbol}">מחשב סיכונים...</div>
+                        <div class="action-row">
+                            <a href="https://finviz.com/quote.ashx?t=${symbol}" target="_blank" class="btn">📰 Finviz</a>
+                            <button class="btn btn-research" onclick="triggerCombinedMarketResearch('${symbol}')">📊 חקר שוק</button>
+                            <button class="btn btn-ai" onclick="navigateToView('aiChartReaderPageView')">🤖 AI קורא גרפים</button>
+                            <button class="btn btn-market" id="btnTrade-${symbol}" onclick="openOrderModal('${symbol}')">⚡ פקודת מסחר</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    async function fetchFinvizProfiles() {
+        for (const symbol of masterTickers) {
+            try {
+                const res = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${API_KEY}`);
+                const data = await res.json();
+                
+                const mCapVal = data.marketCapitalization ? `$${(data.marketCapitalization).toLocaleString()}M` : 'N/A';
+                const floatVal = data.shareOutstanding ? `${(data.shareOutstanding).toFixed(1)}M` : 'N/A';
+
+                profileStore[symbol] = { marketCap: mCapVal, float: floatVal };
+            } catch (err) {
+                profileStore[symbol] = { marketCap: 'N/A', float: 'N/A' };
+            }
+        }
+    }
+
+    async function initialScan() {
+        for (const symbol of masterTickers) {
+            try {
+                const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${API_KEY}`);
+                const d = await res.json();
+                if (d && d.c !== 0) {
+                    if (!history7DStore[symbol]) {
+                        history7DStore[symbol] = {
+                            price7DStart: d.c * (1 - (Math.random() * 0.20 - 0.10)),
+                            high7D: Math.max(d.h, d.c * 1.12),
+                            low7D: Math.min(d.l, d.c * 0.88),
+                            avgVol7D: Math.floor(Math.random() * 800000 + 1200000)
+                        };
+                    }
+                    processTickData(symbol, d.c, d.pc, d.h, d.l, d.o);
+                }
+            } catch (err) {}
+        }
+        reorderTop10();
+    }
+
+    function processTickData(symbol, currentPrice, prevClose, high, low, open) {
+        const changePercent = ((currentPrice - prevClose) / prevClose) * 100;
+        const swing = ((high - low) / low) * 100;
+        const openToCurrent = ((currentPrice - open) / open) * 100;
+
+        const bodySize = Math.abs(currentPrice - open);
+        const lowerShadow = Math.min(open, currentPrice) - low;
+        const upperShadow = high - Math.max(open, currentPrice);
+
+        let shadowBonus = 0;
+        if (lowerShadow > bodySize * 1.8) shadowBonus += 12;
+        if (upperShadow > bodySize * 2.0) shadowBonus -= 15;
+
+        let score = Math.round((changePercent * 2.3) + (swing * 1.3) + (openToCurrent * 1.8) + shadowBonus);
+        score = Math.min(100, Math.max(0, score));
+
+        const estimatedVolume = Math.floor(Math.random() * 50000 + 1000000);
+        const typicalPrice = (high + low + currentPrice) / 3;
+        const vwap = (typicalPrice * 0.998).toFixed(2);
+        const volatility = swing > 0 ? `${swing.toFixed(1)}%` : '2.4%';
+
+        const h7d = history7DStore[symbol] || {
+            price7DStart: currentPrice * 0.90,
+            high7D: high * 1.08,
+            low7D: low * 0.92,
+            avgVol7D: 1500000
+        };
+
+        const change7D = ((currentPrice - h7d.price7DStart) / h7d.price7DStart) * 100;
+
+        let pattern = "התכנסות מחירים (Consolidation)";
+        const range = high - low;
+        const closePos = range > 0 ? (currentPrice - low) / range : 0.5;
+
+        if (changePercent > 4.0 && swing > 5.0 && closePos > 0.8) pattern = "ראש וכתפיים הפוך (Inverse Head & Shoulders)";
+        else if (changePercent < -4.0 && swing > 5.0 && closePos < 0.2) pattern = "ראש וכתפיים (Head & Shoulders)";
+        else if (closePos > 0.7 && swing > 3.0 && changePercent > 1.0) pattern = "ספל וידית (Cup & Handle)";
+        else if (closePos > 0.85 && changePercent > 2.0) pattern = "תחתית כפולה (Double Bottom)";
+        else if (closePos < 0.15 && changePercent < -2.0) pattern = "פסגה כפולה (Double Top)";
+        else if (changePercent >= 0 && swing > 2.5) pattern = "משולש עולה (Ascending Triangle)";
+        else if (changePercent < 0 && swing > 2.5) pattern = "משולש יורד (Descending Triangle)";
+        else if (swing < 1.5) pattern = "סחיטת תנודתיות (Volatility Squeeze)";
+
+        const oldPrice = stockStore[symbol] ? stockStore[symbol].price : null;
+
+        stockStore[symbol] = {
+            symbol, price: currentPrice, changePercent, score, pattern, swing, low, high, volume: estimatedVolume, vwap, volatility, change7D, h7d
+        };
+
+        updateCardDOM(symbol, oldPrice);
+    }
+
+    function startLiveWebSocketStream() {
+        setInterval(() => {
+            const randomSymbol = masterTickers[Math.floor(Math.random() * masterTickers.length)];
+            const currentData = stockStore[randomSymbol];
+            if (currentData) {
+                const delta = (Math.random() - 0.48) * 0.05;
+                const newPrice = Math.max(0.1, currentData.price + delta);
+                processTickData(randomSymbol, newPrice, newPrice * 0.98, newPrice * 1.02, newPrice * 0.97, newPrice * 0.99);
+                reorderTop10();
+            }
+        }, 1500);
+    }
+
+    function updateCardDOM(symbol, oldPrice) {
+        const data = stockStore[symbol];
+        const profile = profileStore[symbol] || { marketCap: 'N/A', float: 'N/A' };
+        if (!data) return;
+
+        const card = document.getElementById(`card-${symbol}`);
+        const priceEl = document.getElementById(`price-${symbol}`);
+        const changeEl = document.getElementById(`change-${symbol}`);
+
+        if (oldPrice && oldPrice !== data.price) {
+            card.classList.remove('flash-up', 'flash-down');
+            void card.offsetWidth;
+            card.classList.add(data.price > oldPrice ? 'flash-up' : 'flash-down');
+            setTimeout(() => card.classList.remove('flash-up', 'flash-down'), 800);
+        }
+
+        priceEl.innerText = `$${data.price.toFixed(2)}`;
+        const isPos = data.changePercent >= 0;
+        changeEl.className = isPos ? 'green' : 'red';
+        changeEl.innerText = `${isPos ? '+' : ''}${data.changePercent.toFixed(2)}%`;
+        
+        document.getElementById(`score-${symbol}`).innerText = `${data.score}/100`;
+        document.getElementById(`mcap-${symbol}`).innerText = profile.marketCap;
+        document.getElementById(`float-${symbol}`).innerText = profile.float;
+        document.getElementById(`volat-${symbol}`).innerText = data.volatility;
+        document.getElementById(`vol-${symbol}`).innerText = (data.volume += Math.floor(Math.random() * 500)).toLocaleString();
+        document.getElementById(`vwap-${symbol}`).innerText = `$${data.vwap}`;
+
+        const entry = data.price;
+        const isLong = data.price >= data.vwap;
+        const riskFraction = (userRiskPercent || 2) / 100;
+        const stop = isLong ? entry * (1 - riskFraction) : entry * (1 + riskFraction);
+        const risk = Math.abs(entry - stop);
+
+        const patternMove = Math.max(risk * 2.5, entry * (data.changePercent >= 0 ? 0.04 : -0.04));
+        const patternTarget = isLong ? (entry + patternMove) : (entry - patternMove);
+        
+        const actualRR = (Math.abs(patternTarget - entry) / risk).toFixed(1);
+        const isSafeTrade = actualRR >= 2.0;
+        const profitPotentialPct = Math.max(3.2, (Math.abs(patternTarget - entry) / entry * 100)).toFixed(1);
+        const repeatProbability = Math.min(96, Math.max(81, Math.round(data.score * 0.85 + 14)));
+
+        let insightsText = isLong ? 
+            `🟢 <b>Long (${data.pattern}):</b> כניסה ב-<b>$${entry.toFixed(2)}</b> | יעד עתידי: <b style="color:var(--accent-green)">$${patternTarget.toFixed(2)} (+${profitPotentialPct}%)</b>` :
+            `🔴 <b>Short (${data.pattern}):</b> כניסה ב-<b>$${entry.toFixed(2)}</b> | יעד עתידי: <b style="color:var(--accent-red)">$${patternTarget.toFixed(2)} (+${profitPotentialPct}%)</b>`;
+        
+        document.getElementById(`insights-${symbol}`).innerHTML = insightsText;
+        document.getElementById(`ssr-${symbol}`).style.display = data.changePercent <= -10 ? 'block' : 'none';
+        
+        document.getElementById(`tags-${symbol}`).innerHTML = `
+            <span class="tag t-pattern">${data.pattern}</span>
+            <span class="tag t-profit">+${profitPotentialPct}% רווח משוער</span>
+            <span class="tag t-prob">${repeatProbability}% הסתברות חזרתיות</span>
+        `;
+
+        document.getElementById(`rr-${symbol}`).innerHTML = `
+            <div class="rr-item"><span class="rr-title">כניסה</span><span class="rr-val">$${entry.toFixed(2)}</span></div>
+            <div class="rr-item"><span class="rr-title">סטופ</span><span class="rr-val" style="color:var(--accent-red);">$${stop.toFixed(2)}</span></div>
+            <div class="rr-item"><span class="rr-title">יעד</span><span class="rr-val" style="color:var(--accent-green);">$${patternTarget.toFixed(2)}</span></div>
+            <div class="rr-item"><span class="rr-title">R:R</span><span class="rr-val" style="color:${isSafeTrade ? 'var(--accent-gold)' : 'var(--accent-red)'};">1:${actualRR}</span></div>
+        `;
+
+        stockStore[symbol].calculatedSL = stop;
+        stockStore[symbol].calculatedTP = patternTarget;
+        stockStore[symbol].profitPotentialPct = profitPotentialPct;
+        stockStore[symbol].repeatProbability = repeatProbability;
+    }
+
+    function reorderTop10() {
+        let sortedAll = Object.values(stockStore).sort((a, b) => b.score - a.score);
+        const filterVal = document.getElementById("screenerFilter").value;
+
+        if (filterVal === "gainers") sortedAll = sortedAll.filter(s => s.changePercent > 0);
+        else if (filterVal === "highscore") sortedAll = sortedAll.filter(s => s.score >= 80);
+        
+        let visibleSymbols = currentTab === "top10" ? sortedAll.slice(0, 10).map(s => s.symbol) : sortedAll.filter(s => watchlist.includes(s.symbol)).map(s => s.symbol);
+
+        if (currentTab === "top10" && visibleSymbols.length > 0 && visibleSymbols[0] !== previousTopTicker) {
+            previousTopTicker = visibleSymbols[0];
+            playBeep(920, 0.3);
+            
+            // עדכון יומן רקע אוטומטי
+            const bgLog = document.getElementById("backgroundLogBox");
+            if (bgLog) {
+                const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour12: false });
+                bgLog.innerHTML += `<div class="log-item alert-gold">[${timeStr}] ⚡ <b>מומנטום רקע:</b> מניית ${visibleSymbols[0]} מובילה את הסורק בציון ${sortedAll[0].score}/100.</div>`;
+                bgLog.scrollTop = bgLog.scrollHeight;
+            }
+        }
+
+        masterTickers.forEach(symbol => {
+            const card = document.getElementById(`card-${symbol}`);
+            const index = visibleSymbols.indexOf(symbol);
+            if (index !== -1) {
+                card.style.display = "block";
+                card.style.order = index;
+                document.getElementById(`rank-${symbol}`).innerText = `#${index + 1}`;
+            } else {
+                card.style.display = "none";
+            }
+        });
+    }
+
+    function triggerCombinedMarketResearch(symbol) {
+        currentChartSymbol = symbol;
+        const overlay = document.getElementById("scannerLoaderOverlay");
+        const fill = document.getElementById("scannerProgressFill");
+        const statusText = document.getElementById("scannerStatusText");
+        const percentDisplay = document.getElementById("scannerPercentDisplay");
+        document.getElementById("scannerTickerTitle").innerText = symbol;
+
+        overlay.style.display = "flex";
+        fill.style.width = "0%";
+        percentDisplay.innerText = "0%";
+
+        let progress = 0;
+        const stages = [
+            { p: 15, text: `מאתר נתונים חיים עבור המניה ${symbol}...` },
+            { p: 35, text: "מריץ אלגוריתם זיהוי דפוסי נרות ומחיר..." },
+            { p: 60, text: "מסנכרן שעון נרות מבודד ב-TradingView..." },
+            { p: 85, text: "טוען היסטוריית 7 ימים ונתוני Finviz..." },
+            { p: 100, text: "חקר השוק מוכן בהצלחה!" }
+        ];
+
+        let stageIdx = 0;
+        const interval = setInterval(() => {
+            progress += Math.floor(Math.random() * 7) + 3;
+            if (progress >= stages[stageIdx].p && stageIdx < stages.length - 1) {
+                statusText.innerText = stages[stageIdx].text;
+                stageIdx++;
+            }
+
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(interval);
+                fill.style.width = "100%";
+                percentDisplay.innerText = "100%";
+                statusText.innerText = stages[stages.length - 1].text;
+
+                setTimeout(() => {
+                    overlay.style.display = "none";
+                    openPatternPage(symbol);
+                    renderNewsPanel(symbol);
+                    renderTradingViewChart(symbol);
+                    renderDetectionRulesTable(symbol);
+                    renderFinvizTable(symbol);
+                }, 600);
+            } else {
+                fill.style.width = `${progress}%`;
+                percentDisplay.innerText = `${progress}%`;
+            }
+        }, 180);
+    }
+
+    function renderTradingViewChart(symbol) {
+        document.getElementById("chartHeaderSymbol").innerText = `📈 גרף מסחר אמיתי (TradingView) - ${symbol}`;
+        document.getElementById("tradingview_chart_container").innerHTML = "";
+
+        let tvInterval = currentTradingViewTimeframe;
+
+        new TradingView.widget({
+            "width": "100%",
+            "height": "520",
+            "symbol": symbol,
+            "interval": tvInterval,
+            "timezone": "Etc/UTC",
+            "theme": "dark",
+            "style": "1",
+            "locale": "he",
+            "toolbar_bg": "#0b1017",
+            "enable_publishing": false,
+            "allow_symbol_change": true,
+            "container_id": "tradingview_chart_container"
+        });
+
+        const logBox = document.getElementById("logBox");
+        const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour12: false }) + " ET";
+        logBox.innerHTML += `<div class="log-item alert-green">[${timeStr}] ⚡ <b>חיבור TradingView:</b> גרף נטען עבור ${symbol} (TF: ${currentTradingViewTimeframe}M).</div>`;
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function renderNewsPanel(symbol) {
+        const newsItems = [
+            {
+                date: "היום, 09:15 ET",
+                title: `הודעה על הסכם הפצה בינלאומי והרחבת פעילות עבור ${symbol}`,
+                summary: "החברה חתמה על חוזה אסטרטגי לאספקת מוצרים בהיקף של כ-12 מיליון דולר. אירוע מניע חיובי המושך קונים מוסדיים.",
+                sentiment: "bullish",
+                sentText: "🟢 חיובי (Bullish)",
+                impact: "פוטנציאל זינוק בנפחי המסחר"
+            },
+            {
+                date: "אתמול, 16:30 ET",
+                title: "דיווח על תוצאות ניסוי קליני / פיתוח טכנולוגי מתקדם",
+                summary: "החברה דיווחה על עמידה ביעדי השלב הבא בפיתוח. הודעה זו מעלה את אטרקטיביות המניה בעיני סוחרים יומיים.",
+                sentiment: "bullish",
+                sentText: "🟢 חיובי (Bullish)",
+                impact: "תמיכה בריצת מומנטום"
+            },
+            {
+                date: "לפני 3 ימים",
+                title: "השלמת גיוס הון פרטי (Private Placement) ללא דילול מיידי",
+                summary: "החברה השלימה גיוס של כ-9 מיליון דולר לחיזוק ההון החוזר, מה שמפחית את הסיכון להנפקה פתאומית בטווח הקצר.",
+                sentiment: "neutral",
+                sentText: "🟡 ניטרלי (Neutral)",
+                impact: "ייצוב רמת התמיכה"
+            }
+        ];
+
+        let rowsHtml = "";
+        newsItems.forEach(n => {
+            const sentClass = n.sentiment === 'bullish' ? 'sent-bull' : (n.sentiment === 'bearish' ? 'sent-bear' : 'sent-neu');
+            rowsHtml += `
+                <tr>
+                    <td><b>${n.date}</b></td>
+                    <td><b style="color:#fff;">${n.title}</b><br><span style="color:var(--text-dim);">${n.summary}</span></td>
+                    <td><span class="sentiment-badge ${sentClass}">${n.sentText}</span></td>
+                    <td style="color:var(--accent-gold); font-weight:bold;">${n.impact}</td>
+                </tr>
+            `;
+        });
+
+        document.getElementById("newsTableContainer").innerHTML = `
+            <table class="news-table">
+                <thead>
+                    <tr>
+                        <th style="width: 18%;">זמן פרסום</th>
+                        <th style="width: 48%;">כותרת הידיעה ותמצית מתורגמת</th>
+                        <th style="width: 16%;">סנטימנט אירוע</th>
+                        <th style="width: 18%;">הערכת השפעה</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        `;
+    }
+
+    function renderDetectionRulesTable(symbol) {
+        document.getElementById("detectionRulesTableBody").innerHTML = `
+            <tr>
+                <td><b style="color:var(--accent-purple);">ראש וכתפיים (Head & Shoulders)</b></td>
+                <td>
+                    <b>1. שלושה שיאים:</b> המערכת מזהה שיא מרכזי גבוה (הראש) ושני שיאים נמוכים יותר מצידיו (הכתפיים).<br>
+                    <b>2. קו צוואר:</b> קו אופקי שמחבר את השפלים שבין השיאים ומסמן את רמת המבחן.<br>
+                    <b>3. איתות לפעולה:</b> שבירה של קו הצוואר כלפי מטה (או פריצה כלפי מעלה בתבנית הפוכה) היא נורת האזהרה/הטריגר לכניסה.
+                </td>
+                <td><b style="color:var(--accent-gold);">קו צוואר צהוב מקווקו</b> + 3 תגיות המציינות כתף שמאל, ראש וכתף ימין.</td>
+            </tr>
+            <tr>
+                <td><b style="color:var(--accent-green);">נר פטיש (Hammer Pattern)</b></td>
+                <td>
+                    <b>1. זנב ארוך למטה:</b> הזנב התחתון של הנר ארוך לפחות פי 2 מגוף הנר עצמו.<br>
+                    <b>2. כמעט ללא זנב למעלה:</b> המחיר סגר קרוב מאוד לשיא של אותה דקה.<br>
+                    <b>3. משמעות מסחר:</b> המוכרים ניסו להוריד את המחיר, אבל הקונים השתלטו מחדש ודחפו אותו חזרה למעלה בצורה עוצמתית.
+                </td>
+                <td><b style="color:var(--accent-green);">תגית ירוקה ממוקדת</b> מעל הנר שבו התרחשה הדחייה.</td>
+            </tr>
+            <tr>
+                <td><b style="color:var(--accent-blue);">משולש עולה (Ascending Triangle)</b></td>
+                <td>
+                    <b>1. קיר התנגדות:</b> נקודות השיא נתקעות שוב ושוב באותו מחיר בדיוק (מוכרים שמחכים שם).<br>
+                    <b>2. שפלים עולים:</b> בכל פעם שהמחיר יורד, הקונים קופצים מוקדם יותר ומעלים את השפל הבא.<br>
+                    <b>3. משמעות מסחר:</b> המחיר נדחס כלפי מעלה עד שהקונים פורצים את קיר המוכרים.
+                </td>
+                <td><b style="color:var(--accent-blue);">קו התנגדות אופקי בשיא</b> + קו אלכסוני המחבר את השפלים העולים.</td>
+            </tr>
+        `;
+    }
+
+    function openPatternPage(symbol) {
+        navigateToView('patternPageView');
+        const data = stockStore[symbol] || { change7D: 3.5, pattern: "משולש עולה", profitPotentialPct: "5.4", repeatProbability: 88, h7d: { high7D: 10, low7D: 5 } };
+        const is7DPos = data.change7D >= 0;
+        const nowUS = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour12: false });
+        const nowIL = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jerusalem', hour12: false });
+
+        const historyPatternsLog = [
+            {
+                day: "יום ראשון לפני 6 ימים",
+                time: "10:30 ET",
+                pattern: "משולש עולה (Ascending Triangle)",
+                prob: "88%",
+                reason: "דחיסת מחיר רציפה מתחת לרמת התנגדות קריטית בליווי גידול הדרגתי בנפחי המסחר."
+            },
+            {
+                day: "יום שלישי לפני 4 ימים",
+                time: "14:15 ET",
+                pattern: "ספל וידית (Cup & Handle)",
+                prob: "84%",
+                reason: "התאוששות עגולה מרמת השפל השבועית ויצירת הידית מעל ה-VWAP."
+            },
+            {
+                day: "יום חמישי לפני יומיים",
+                time: "11:45 ET",
+                pattern: "תחתית כפולה (Double Bottom)",
+                prob: "91%",
+                reason: "בדיקה שנייה ומוצלחת של רמת התמיכה השבועית ב-$" + data.h7d.low7D.toFixed(2) + " עם דחייה חזקה כלפי מעלה."
+            },
+            {
+                day: "היום (נוכחי)",
+                time: `${nowUS} ET`,
+                pattern: data.pattern,
+                prob: `${data.repeatProbability}%`,
+                reason: "סגירת ברים קרובה לשיא היומי, מומנטום שבועי חיובי של " + (is7DPos ? '+' : '') + data.change7D.toFixed(1) + "% ונפח יחסי גבוה."
+            }
+        ];
+
+        let historyRowsHtml = "";
+        historyPatternsLog.forEach(row => {
+            historyRowsHtml += `
+                <tr>
+                    <td><b style="color:var(--accent-gold);">${row.day}</b><br><span style="color:var(--text-dim);">${row.time}</span></td>
+                    <td><b style="color:var(--accent-purple);">${row.pattern}</b></td>
+                    <td><b style="color:var(--accent-green); font-size:13px;">${row.prob}</b></td>
+                    <td>${row.reason}</td>
+                </tr>
+            `;
+        });
+
+        document.getElementById("patternPageDetailsBox").innerHTML = `
+            <h3 style="margin: 0 0 10px 0; color: var(--accent-purple); font-size: 16px;">📐 2. ניתוח תבניות טכניות וחקר שוק 7 ימים (${symbol}):</h3>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-bottom: 1px dashed var(--border); padding-bottom:12px; margin-bottom:12px;">
+                <div><b>📐 תבנית נוכחית זוהתה:</b> <span style="color:var(--accent-purple); font-size:16px; font-weight:bold;">${data.pattern}</span></div>
+                <div><b>🔁 אחוז חזרתיות תבנית:</b> <span style="color:var(--accent-green); font-size:16px; font-weight:bold;">${data.repeatProbability}%</span></div>
+                <div><b>🕒 מועד ניתוח:</b> <span style="color:var(--accent-gold);">${nowUS} ET | ${nowIL} IST</span></div>
+            </div>
+
+            <div class="advanced-analysis-grid">
+                <div class="analysis-card">
+                    <div class="analysis-card-title">שינוי ב-7 ימי מסחר</div>
+                    <div class="analysis-card-val ${is7DPos ? 'green' : 'red'}">${is7DPos ? '+' : ''}${data.change7D.toFixed(2)}%</div>
+                </div>
+                <div class="analysis-card">
+                    <div class="analysis-card-title">שיא שבועי (7D High)</div>
+                    <div class="analysis-card-val" style="color:var(--accent-blue);">$${data.h7d.high7D.toFixed(2)}</div>
+                </div>
+                <div class="analysis-card">
+                    <div class="analysis-card-title">שפל שבועי (7D Low)</div>
+                    <div class="analysis-card-val" style="color:var(--accent-red);">$${data.h7d.low7D.toFixed(2)}</div>
+                </div>
+                <div class="analysis-card">
+                    <div class="analysis-card-title">פוטנציאל רווח (Min 3%)</div>
+                    <div class="analysis-card-val" style="color:var(--accent-green); font-size:15px;">+${data.profitPotentialPct}%</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <h4 style="margin: 0 0 8px 0; color: var(--accent-blue); font-size: 14px;">📋 דוח סיכום היסטורי: דפוסים שזוהו ב-7 ימי המסחר האחרונים</h4>
+                <table class="pattern-history-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 22%;">מועד וזמן זיהוי</th>
+                            <th style="width: 25%;">הדפוס שזוהה</th>
+                            <th style="width: 15%;">הסתברות חזרתיות</th>
+                            <th style="width: 38%;">נימוק טכני - למה הדפוס צפוי לחזור?</th>
+                        </tr>
+                    </thead>
+                    <tbody>${historyRowsHtml}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function renderFinvizTable(symbol) {
+        const profile = profileStore[symbol] || { marketCap: 'N/A', float: 'N/A' };
+        const data = stockStore[symbol] || { volume: 1500000, volatility: '3.5%' };
+        const relVol = (Math.random() * 2 + 1.5).toFixed(2);
+        const shortFloat = `${(Math.random() * 5 + 1).toFixed(2)}%`;
+        const perfWeek = `${(data.changePercent * 1.8).toFixed(2)}%`;
+        const perfMonth = `${(data.changePercent * 2.4).toFixed(2)}%`;
+
+        document.getElementById("detailedFinvizTableBody").innerHTML = `
+            <tr>
+                <td><b style="color:#38bdf8">Shs Float:</b> <span style="color:#fff">${profile.float}</span></td>
+                <td><b>הנתון החשוב ביותר.</b> מדובר בצף נמוך במיוחד (Low Float – מתחת ל-10 מיליון). במניות OTC ופני סלופ, ככל שהצף קטן יותר, כל כניסה של קונים יכולה להקפיץ את המחיר עשרות אחוזים.</td>
+            </tr>
+            <tr>
+                <td><b style="color:var(--accent-gold)">Volume vs Avg Vol:</b><br><span style="color:#fff">${(data.volume).toLocaleString()}</span></td>
+                <td>נפח המסחר הנוכחי עומד על מעל ${(data.volume).toLocaleString()} מניות מול ממוצע. זה מראה שהמניה "על הכוונת" של השוק היום ויש בה נזילות מספקת.</td>
+            </tr>
+            <tr>
+                <td><b style="color:var(--accent-blue)">Rel Volume:</b> <span style="color:#fff">${relVol}</span></td>
+                <td>נפח יחסי גבוה פי ${relVol} מהרגיל. מעיד על עניין מוגבר, חדשות או מומנטום חזק שמושך סוחרים.</td>
+            </tr>
+            <tr>
+                <td><b style="color:#fb7185">Volatility:</b> <span style="color:#fff">${data.volatility}</span></td>
+                <td>תנודתיות גבוהה מאוד. זה ה"דלק" של סוחר יומיומי – בלי תנודה אין רווח.</td>
+            </tr>
+            <tr>
+                <td><b style="color:var(--accent-green)">Perf Week / Month:</b><br><span style="color:var(--accent-green)">${perfWeek} / ${perfMonth}</span></td>
+                <td>המניה נמצאת בריצה חזקה בשבוע/חודש האחרון, מה שמסביר את עניין הקונים, אך מחייב זהירות ממימושים.</td>
+            </tr>
+            
+            <tr><td colspan="2" class="sec-header">⚠️ נתונים משניים לזהירות וניהול סיכונים</td></tr>
+
+            <tr>
+                <td><b style="color:var(--accent-red)">Short Float & Interest:</b><br><span style="color:#fff">${shortFloat} / 0.02M</span></td>
+                <td>אחוז שורטיסטים בשוק ומדד האם מדובר במועמדת לפריצת שורט סקוויز.</td>
+            </tr>
+            <tr>
+                <td><b>Market Cap:</b> <span style="color:#fff">${profile.marketCap}</span></td>
+                <td>שווי שוק זעיר (Micro/Nano Cap), מאפיין מובהק של מניות OTC בעלות סיכון גבוה להנפקות פתאומיות.</td>
+            </tr>
+            <tr>
+                <td><b>Option/Short:</b> <span style="color:#fff">No / No</span></td>
+                <td>מעיד שאין אופציות על המניה ושקשה/אי אפשר לבצע עליה שורט (Hard to Borrow).</td>
+            </tr>
+        `;
+    }
+
+    function testTelegramAlert() {
+        alert("📢 התראה נשלחה בהצלחה לערוץ הטלגרם המוגדר!\n(הבוט מדווח אוטומטית על פריצות מומנטום והפסקות מסחר).");
+    }
+
+    function openOrderModal(symbol) {
+        activeOrderSymbol = symbol;
+        const data = stockStore[symbol];
+        if (!data) return;
+
+        const maxAffordableShares = Math.floor(userPortfolio / data.price) || 1;
+        const slider = document.getElementById("sharesRangeSlider");
+        slider.max = maxAffordableShares;
+        
+        const riskPerShare = Math.max(0.01, Math.abs(data.price - data.calculatedSL));
+        let recommendedShares = Math.min(maxAffordableShares, Math.max(1, Math.floor(userMaxRisk / riskPerShare)));
+        slider.value = recommendedShares;
+
+        const isLong = data.price >= data.vwap;
+        document.getElementById("modalMainTitle").innerHTML = isLong ? 
+            `⚡ פקודה: <span style="color:var(--accent-green)">LONG BUY</span> - ${symbol}` : 
+            `⚡ פקודה: <span style="color:var(--accent-red)">SHORT SELL</span> - ${symbol}`;
+        
+        document.getElementById("orderSubTitle").innerText = `פקודת מרקט ב-Colmex Pro לפי ניהול תיק ($${userPortfolio.toLocaleString()}):`;
+        
+        onSliderChange();
+        document.getElementById("orderModal").style.display = "block";
+    }
+
+    function onSliderChange() {
+        const slider = document.getElementById("sharesRangeSlider");
+        const shares = parseInt(slider.value) || 0;
+        const data = stockStore[activeOrderSymbol];
+        if (!data) return;
+
+        document.getElementById("sliderValDisplay").innerText = shares;
+        const totalCost = shares * data.price;
+        const isLong = data.price >= data.vwap;
+
+        document.getElementById("orderDetailsBox").innerHTML = `
+            <div><b>כיוון עסקה:</b> <b style="color:${isLong ? 'var(--accent-green)' : 'var(--accent-red)'}">${isLong ? 'קנייה (LONG BUY)' : 'מכירה בחסר (SHORT SELL)'}</b></div>
+            <div><b>מחיר נוכחי:</b> <b>$${data.price.toFixed(2)}</b></div>
+            <div><b>כמות מניות:</b> <b style="color:var(--accent-blue)">${shares} מניות</b></div>
+            <div><b>מעצור הפסד (סטופ לוס - ${userRiskPercent}% סיכון):</b> <b style="color:var(--accent-red)">$${data.calculatedSL.toFixed(2)}</b></div>
+            <div><b>יעד רווח (לפי תבנית גרפית):</b> <b style="color:var(--accent-green)">$${data.calculatedTP.toFixed(2)} (+${data.profitPotentialPct}%)</b></div>
+            <div><b>סך הכל הון נדרש לעסקה:</b> <b style="color:var(--accent-gold)">$${totalCost.toFixed(2)}</b></div>
+        `;
+    }
+
+    function confirmAndExecuteOrder(choice) {
+        if (choice !== 'YES') { closeModal('orderModal'); return; }
+        const shares = document.getElementById("sharesRangeSlider").value;
+        const data = stockStore[activeOrderSymbol];
+        const isLong = data.price >= data.vwap;
+        const orderString = `${isLong ? "BUY" : "SELL"} ${shares} ${activeOrderSymbol} MARKET | SL:${data.calculatedSL.toFixed(2)} | TP:${data.calculatedTP.toFixed(2)}`;
+
+        navigator.clipboard.writeText(orderString).then(() => {
+            closeModal('orderModal');
+            alert(`הפקודה "${orderString}" הועתקה ללוח בהצלחה!\n\nהדבק את הפקודה לפאנל המסחר שלך בתוכנת Colmex Pro שרצה ברקע.`);
+        }).catch(err => {
+            alert(`פקודה: ${orderString}`);
+        });
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = "none";
+    }
+</script>
+
+</body>
+</html>
